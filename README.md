@@ -34,3 +34,7 @@ row_number(window func) find the client with the minimum and maximum number of o
 partition by product_category to start rancing for every category.
 
 Overall, twice faster execution time
+
+default — 752 ms
+seq Scan disabled — 720 ms because used indexes
+hash Join disabled — 1047 ms because used slower merge join
