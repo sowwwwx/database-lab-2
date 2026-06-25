@@ -130,3 +130,118 @@ group by
     product_category
 order by
     product_category;
+
+--bonus--
+--disable seq scans--
+--757.494 ms--
+set enable_seqscan = off;
+
+explain analyze
+with filtered_orders as (
+    select
+        c.id as client_id,
+        concat(c.name, ' ', c.surname) as full_name,
+        p.product_category
+    from opt_orders as o
+    join opt_products as p
+        on o.product_id = p.product_id
+    join opt_clients as c
+        on o.client_id = c.id
+    where o.order_date >= date '2023-06-07'
+      and c.status = 'active'
+),
+client_count as (
+    select
+        product_category,
+        client_id,
+        full_name,
+        count(*) as total_orders
+    from filtered_orders
+    group by
+        product_category,
+        client_id,
+        full_name
+),
+client_rate as (
+    select
+        product_category,
+        full_name,
+        total_orders,
+        row_number() over (
+            partition by product_category
+            order by total_orders, client_id
+        ) as min_top,
+        row_number() over (
+            partition by product_category
+            order by total_orders desc, client_id
+        ) as max_top
+    from client_count
+)
+select
+    product_category,
+    max(concat(full_name, ',', total_orders, ' orders'))
+        filter (where min_top = 1) as min_client,
+    max(concat(full_name, ',', total_orders, ' orders'))
+        filter (where max_top = 1) as max_client
+from client_rate
+group by product_category
+order by product_category;
+
+reset enable_seqscan;
+
+-- disable hash join--
+--1042.425 ms--
+set enable_hashjoin = off;
+
+explain analyze
+with filtered_orders as (
+    select
+        c.id as client_id,
+        concat(c.name, ' ', c.surname) as full_name,
+        p.product_category
+    from opt_orders as o
+    join opt_products as p
+        on o.product_id = p.product_id
+    join opt_clients as c
+        on o.client_id = c.id
+    where o.order_date >= date '2023-06-07'
+      and c.status = 'active'
+),
+client_count as (
+    select
+        product_category,
+        client_id,
+        full_name,
+        count(*) as total_orders
+    from filtered_orders
+    group by
+        product_category,
+        client_id,
+        full_name
+),
+client_rate as (
+    select
+        product_category,
+        full_name,
+        total_orders,
+        row_number() over (
+            partition by product_category
+            order by total_orders, client_id
+        ) as min_top,
+        row_number() over (
+            partition by product_category
+            order by total_orders desc, client_id
+        ) as max_top
+    from client_count
+)
+select
+    product_category,
+    max(concat(full_name, ',', total_orders, ' orders'))
+        filter (where min_top = 1) as min_client,
+    max(concat(full_name, ',', total_orders, ' orders'))
+        filter (where max_top = 1) as max_client
+from client_rate
+group by product_category
+order by product_category;
+
+reset enable_hashjoin;
